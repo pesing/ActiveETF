@@ -319,51 +319,58 @@ for ETF_CODE in ETF_LIST:
             ]
 
             # ====================================
-            # 有變化才輸出
+            # compare CSV
+            # 即使沒變化也輸出
             # ====================================
 
-            if len(change_df) > 0:
+            compare_csv = (
+                f"{SAVE_PATH}/"
+                f"{ETF_CODE}_compare_"
+                f"{today_str}.csv"
+            )
 
-                # 今日 compare CSV
+            change_df.to_csv(
 
-                compare_csv = (
-                    f"{SAVE_PATH}/"
-                    f"{ETF_CODE}_compare_"
-                    f"{today_str}.csv"
-                )
+                compare_csv,
 
-                change_df.to_csv(
+                index=False,
 
-                    compare_csv,
+                encoding="utf-8-sig"
+            )
 
-                    index=False,
+            print(f"輸出：{compare_csv}")
 
-                    encoding="utf-8-sig"
-                )
+            # ====================================
+            # latest compare CSV
+            # ====================================
 
-                print(f"輸出：{compare_csv}")
+            latest_csv = (
+                f"{SAVE_PATH}/"
+                f"latest_{ETF_CODE}_compare.csv"
+            )
 
-                # 最新 compare CSV
+            change_df.to_csv(
 
-                latest_csv = (
-                    f"{SAVE_PATH}/"
-                    f"latest_{ETF_CODE}_compare.csv"
-                )
+                latest_csv,
 
-                change_df.to_csv(
+                index=False,
 
-                    latest_csv,
+                encoding="utf-8-sig"
+            )
 
-                    index=False,
+            print(f"更新：{latest_csv}")
 
-                    encoding="utf-8-sig"
-                )
+            # ====================================
+            # 顯示結果
+            # ====================================
 
-                print(f"更新：{latest_csv}")
+            if len(change_df) == 0:
+
+                print("今日無變化")
 
             else:
 
-                print("無變化")
+                print("今日有持股變化")
 
         else:
 
