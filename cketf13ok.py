@@ -1,6 +1,6 @@
 # ============================================
 # 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# GitHub Actions 版
+# GitHub Actions 專用完整版
 # ============================================
 
 import os
@@ -36,7 +36,15 @@ os.makedirs(
 )
 
 # ============================================
-# 逐一抓ETF
+# 顯示 data 內容
+# ============================================
+
+print("\n目前 data 資料夾：")
+
+print(os.listdir(SAVE_PATH))
+
+# ============================================
+# 開始
 # ============================================
 
 for ETF_CODE in ETF_LIST:
@@ -71,6 +79,10 @@ for ETF_CODE in ETF_LIST:
         for i, table in enumerate(tables):
 
             cols = [str(c) for c in table.columns]
+
+            print(f"TABLE {i} 欄位：")
+
+            print(cols)
 
             if any(
                 "個股名稱" in c
@@ -168,6 +180,10 @@ for ETF_CODE in ETF_LIST:
 
         top10_df = result_df.head(10)
 
+        print("\n前10大持股：")
+
+        print(top10_df)
+
         # ====================================
         # 今日CSV
         # ====================================
@@ -187,7 +203,7 @@ for ETF_CODE in ETF_LIST:
             encoding="utf-8-sig"
         )
 
-        print(f"輸出：{csv_file}")
+        print(f"\n輸出：{csv_file}")
 
         # ====================================
         # 找歷史CSV
@@ -204,7 +220,14 @@ for ETF_CODE in ETF_LIST:
                 and
                 f.endswith(".csv")
             )
+
         ])
+
+        print("\n歷史CSV：")
+
+        print(files)
+
+        print(f"檔案數量：{len(files)}")
 
         # ====================================
         # 至少兩天資料
@@ -216,7 +239,7 @@ for ETF_CODE in ETF_LIST:
                 f"{SAVE_PATH}/{files[-2]}"
             )
 
-            print(f"比較昨日：{yesterday_csv}")
+            print(f"\n比較昨日：{yesterday_csv}")
 
             # ====================================
             # 讀昨日CSV
@@ -318,9 +341,12 @@ for ETF_CODE in ETF_LIST:
                 compare_df["股數變化"] != 0
             ]
 
+            print("\n變化資料：")
+
+            print(change_df)
+
             # ====================================
             # compare CSV
-            # 即使沒變化也輸出
             # ====================================
 
             compare_csv = (
@@ -338,7 +364,7 @@ for ETF_CODE in ETF_LIST:
                 encoding="utf-8-sig"
             )
 
-            print(f"輸出：{compare_csv}")
+            print(f"\n輸出：{compare_csv}")
 
             # ====================================
             # latest compare CSV
@@ -378,7 +404,7 @@ for ETF_CODE in ETF_LIST:
 
     except Exception as e:
 
-        print("發生錯誤：")
+        print("\n發生錯誤：")
 
         print(e)
 
