@@ -1,11 +1,13 @@
 # ============================================
 # 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# GitHub Actions 專用完整版
+# GitHub Actions 專用完整版（台灣時間版）
 # ============================================
 
 import os
 import pandas as pd
+
 from datetime import datetime
+from datetime import timedelta
 
 # ============================================
 # ETF清單
@@ -19,10 +21,15 @@ ETF_LIST = [
 ]
 
 # ============================================
-# 今日日期
+# 台灣時間
 # ============================================
 
-today_str = datetime.today().strftime("%Y-%m-%d")
+today_str = (
+    datetime.utcnow()
+    + timedelta(hours=8)
+).strftime("%Y-%m-%d")
+
+print(f"台灣日期：{today_str}")
 
 # ============================================
 # GitHub Pages data 資料夾
