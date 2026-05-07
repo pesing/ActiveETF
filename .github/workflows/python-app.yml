@@ -4,6 +4,7 @@ on:
 
   schedule:
 
+    # 台灣時間 18:00
     - cron: '0 10 * * *'
 
   workflow_dispatch:
@@ -19,9 +20,20 @@ jobs:
 
     steps:
 
+      # ====================================
+      # Checkout Repo
+      # ====================================
+
       - name: Checkout
 
         uses: actions/checkout@v4
+
+        with:
+          fetch-depth: 0
+
+      # ====================================
+      # Python
+      # ====================================
 
       - name: Setup Python
 
@@ -31,6 +43,10 @@ jobs:
 
           python-version: '3.11'
 
+      # ====================================
+      # Install Packages
+      # ====================================
+
       - name: Install packages
 
         run: |
@@ -39,11 +55,19 @@ jobs:
           pip install lxml
           pip install html5lib
 
+      # ====================================
+      # Run Python
+      # ====================================
+
       - name: Run Python
 
         run: |
 
           python cketf13ok.py
+
+      # ====================================
+      # Git Commit
+      # ====================================
 
       - name: Commit CSV
 
