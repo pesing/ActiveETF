@@ -1,0 +1,57 @@
+name: Update ETF CSV
+
+on:
+
+  schedule:
+
+    - cron: '0 10 * * *'
+
+  workflow_dispatch:
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+
+        uses: actions/setup-python@v5
+
+        with:
+
+          python-version: '3.11'
+
+      - name: Install packages
+
+        run: |
+
+          pip install pandas
+          pip install lxml
+          pip install html5lib
+
+      - name: Run Python
+
+        run: |
+
+          python cketf13ok.py
+
+      - name: Commit CSV
+
+        run: |
+
+          git config --local user.email "action@github.com"
+
+          git config --local user.name "github-actions"
+
+          git add .
+
+          git diff --quiet && git diff --staged --quiet || git commit -m "auto update csv"
+
+          git push
