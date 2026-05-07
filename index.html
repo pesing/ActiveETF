@@ -1,200 +1,269 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>主動ETF 持股比較</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <title>主動ETF 持股追蹤</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f5f5f5;
-    }
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-    h1 {
-      color: #333;
-    }
+    <style>
 
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+        body{
+            font-family: Arial;
+            background:#f5f5f5;
+            margin:20px;
+        }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
+        h1{
+            color:#333;
+        }
 
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: center;
-    }
+        .card{
+            background:white;
+            padding:20px;
+            margin-bottom:20px;
+            border-radius:10px;
+            box-shadow:0 2px 5px rgba(0,0,0,0.1);
+        }
 
-    th {
-      background: #eee;
-    }
+        table{
+            width:100%;
+            border-collapse:collapse;
+            margin-top:10px;
+        }
 
-    .up {
-      color: green;
-      font-weight: bold;
-    }
+        th,td{
+            border:1px solid #ccc;
+            padding:8px;
+            text-align:center;
+        }
 
-    .down {
-      color: red;
-      font-weight: bold;
-    }
+        th{
+            background:#eee;
+        }
 
-    .nochange {
-      color: gray;
-    }
+        .up{
+            color:green;
+            font-weight:bold;
+        }
 
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      border: none;
-      border-radius: 6px;
-      background: #007bff;
-      color: white;
-    }
+        .down{
+            color:red;
+            font-weight:bold;
+        }
 
-    button:hover {
-      background: #0056b3;
-    }
-  </style>
+        .title{
+            font-size:24px;
+            margin-bottom:10px;
+        }
+
+    </style>
 </head>
+
 <body>
 
-  <h1>主動ETF 前10持股比較</h1>
+    <h1>主動ETF 每日加減碼追蹤</h1>
 
-  <div class="card">
-    <h3>上傳昨日 CSV</h3>
-    <input type="file" id="yesterdayFile" accept=".csv">
-  </div>
+    <!-- ETF區塊 -->
+    <div id="container"></div>
 
-  <div class="card">
-    <h3>上傳今日 CSV</h3>
-    <input type="file" id="todayFile" accept=".csv">
-  </div>
+    <script>
 
-  <div class="card">
-    <button onclick="compareCSV()">開始比較</button>
-  </div>
+        // =====================================
+        // ETF清單
+        // =====================================
 
-  <div class="card">
-    <h2>比較結果</h2>
-    <table id="resultTable">
-      <thead>
-        <tr>
-          <th>股票代號</th>
-          <th>股票名稱</th>
-          <th>昨日股數</th>
-          <th>今日股數</th>
-          <th>股數變化</th>
-          <th>變化</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+        const ETF_LIST = [
 
-  <script>
+            "00999A",
+            "00981A",
+            "00992A",
+            "00982A"
+        ];
 
-    function readCSV(file) {
-      return new Promise((resolve) => {
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: function(results) {
-            resolve(results.data);
-          }
-        });
-      });
-    }
+        // =====================================
+        // 載入所有ETF
+        // =====================================
 
-    async function compareCSV() {
+        async function loadAllETF(){
 
-      const yesterdayFile = document.getElementById('yesterdayFile').files[0];
-      const todayFile = document.getElementById('todayFile').files[0];
+            for(const etf of ETF_LIST){
 
-      if (!yesterdayFile || !todayFile) {
-        alert('請選擇兩個CSV檔');
-        return;
-      }
-
-      const yesterdayData = await readCSV(yesterdayFile);
-      const todayData = await readCSV(todayFile);
-
-      const yesterdayMap = {};
-
-      yesterdayData.forEach(row => {
-
-        const code = String(row['股票代號']);
-
-        yesterdayMap[code] = {
-          name: row['股票名稱'],
-          shares: Number(row['持有股數']) || 0
-        };
-      });
-
-      const tbody = document.querySelector('#resultTable tbody');
-
-      tbody.innerHTML = '';
-
-      todayData.forEach(row => {
-
-        const code = String(row['股票代號']);
-
-        const name = row['股票名稱'];
-
-        const todayShares = Number(row['持有股數']) || 0;
-
-        const yesterdayShares = yesterdayMap[code]
-          ? yesterdayMap[code].shares
-          : 0;
-
-        const diff = todayShares - yesterdayShares;
-
-        let changeText = '不變';
-        let className = 'nochange';
-
-        if (diff > 0) {
-          changeText = '加碼';
-          className = 'up';
+                await loadETF(etf);
+            }
         }
 
-        if (diff < 0) {
-          changeText = '減碼';
-          className = 'down';
+        // =====================================
+        // 載入ETF CSV
+        // =====================================
+
+        async function loadETF(etfCode){
+
+            const url =
+                `data/latest_${etfCode}_compare.csv`;
+
+            try{
+
+                const response = await fetch(url);
+
+                if(!response.ok){
+
+                    console.log(`${etfCode} 無 compare CSV`);
+
+                    return;
+                }
+
+                const csvText =
+                    await response.text();
+
+                Papa.parse(csvText, {
+
+                    header:true,
+
+                    skipEmptyLines:true,
+
+                    complete:function(results){
+
+                        renderTable(
+                            etfCode,
+                            results.data
+                        );
+                    }
+                });
+
+            }catch(err){
+
+                console.log(err);
+            }
         }
 
-        if (diff !== 0) {
+        // =====================================
+        // 顯示表格
+        // =====================================
 
-          const tr = document.createElement('tr');
+        function renderTable(
+            etfCode,
+            data
+        ){
 
-          tr.innerHTML = `
-            <td>${code}</td>
-            <td>${name}</td>
-            <td>${yesterdayShares.toLocaleString()}</td>
-            <td>${todayShares.toLocaleString()}</td>
-            <td>${diff.toLocaleString()}</td>
-            <td class="${className}">${changeText}</td>
-          `;
+            if(data.length === 0){
 
-          tbody.appendChild(tr);
+                return;
+            }
+
+            const container =
+                document.getElementById(
+                    "container"
+                );
+
+            const card =
+                document.createElement(
+                    "div"
+                );
+
+            card.className = "card";
+
+            let html = `
+                <div class="title">
+                    ${etfCode}
+                </div>
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>股票代號</th>
+                            <th>股票名稱</th>
+                            <th>昨日股數</th>
+                            <th>今日股數</th>
+                            <th>股數變化</th>
+                            <th>變化</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+            `;
+
+            data.forEach(row => {
+
+                const diff =
+                    Number(
+                        row["股數變化"]
+                    );
+
+                let cls = "";
+
+                if(diff > 0){
+
+                    cls = "up";
+
+                }else if(diff < 0){
+
+                    cls = "down";
+                }
+
+                html += `
+
+                    <tr>
+
+                        <td>
+                            ${row["股票代號"]}
+                        </td>
+
+                        <td>
+                            ${row["股票名稱_今日"]}
+                        </td>
+
+                        <td>
+                            ${Number(
+                                row["持有股數_昨日"]
+                            ).toLocaleString()}
+                        </td>
+
+                        <td>
+                            ${Number(
+                                row["持有股數_今日"]
+                            ).toLocaleString()}
+                        </td>
+
+                        <td class="${cls}">
+                            ${diff.toLocaleString()}
+                        </td>
+
+                        <td class="${cls}">
+                            ${row["變化"]}
+                        </td>
+
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+
+                </table>
+            `;
+
+            card.innerHTML = html;
+
+            container.appendChild(card);
         }
-      });
-    }
 
-  </script>
+        // =====================================
+        // 開始
+        // =====================================
+
+        loadAllETF();
+
+    </script>
 
 </body>
+
 </html>
