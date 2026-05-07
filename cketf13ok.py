@@ -1,6 +1,6 @@
 # ============================================
 # 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# 有變化才輸出 compare CSV
+# GitHub Actions 版
 # ============================================
 
 import os
@@ -25,10 +25,15 @@ ETF_LIST = [
 today_str = datetime.today().strftime("%Y-%m-%d")
 
 # ============================================
-# 建立資料夾
+# GitHub Pages data 資料夾
 # ============================================
 
-os.makedirs("data", exist_ok=True)
+SAVE_PATH = "data"
+
+os.makedirs(
+    SAVE_PATH,
+    exist_ok=True
+)
 
 # ============================================
 # 逐一抓ETF
@@ -67,10 +72,6 @@ for ETF_CODE in ETF_LIST:
 
             cols = [str(c) for c in table.columns]
 
-            print(f"\nTABLE {i} 欄位：")
-
-            print(cols)
-
             if any(
                 "個股名稱" in c
                 for c in cols
@@ -78,7 +79,7 @@ for ETF_CODE in ETF_LIST:
 
                 holding_df = table
 
-                print(f"\n找到持股表：TABLE {i}")
+                print(f"找到持股表 TABLE {i}")
 
                 break
 
@@ -88,7 +89,7 @@ for ETF_CODE in ETF_LIST:
 
         if holding_df is None:
 
-            print("\n找不到持股表")
+            print("找不到持股表")
 
             continue
 
@@ -115,7 +116,7 @@ for ETF_CODE in ETF_LIST:
         )
 
         # ====================================
-        # 找投資比例
+        # 找投資比例欄位
         # ====================================
 
         ratio_col = None
@@ -128,7 +129,7 @@ for ETF_CODE in ETF_LIST:
                 break
 
         # ====================================
-        # 找持有股數
+        # 找持有股數欄位
         # ====================================
 
         share_col = None
@@ -162,48 +163,46 @@ for ETF_CODE in ETF_LIST:
         ]
 
         # ====================================
-        # 前10大持股
+        # 前10大
         # ====================================
 
         top10_df = result_df.head(10)
 
         # ====================================
-        # 顯示
-        # ====================================
-
-        print("\n前10大持股：")
-
-        print(top10_df)
-
-        # ====================================
-        # 輸出今日CSV
+        # 今日CSV
         # ====================================
 
         csv_file = (
-            f"data/"
+            f"{SAVE_PATH}/"
             f"{ETF_CODE}_top10_"
             f"{today_str}.csv"
         )
 
         top10_df.to_csv(
+
             csv_file,
+
             index=False,
+
             encoding="utf-8-sig"
         )
 
-        print("\nCSV已輸出：")
-
-        print(csv_file)
+        print(f"輸出：{csv_file}")
 
         # ====================================
         # 找歷史CSV
         # ====================================
 
         files = sorted([
-            f for f in os.listdir("data")
+
+            f for f in os.listdir(SAVE_PATH)
+
             if (
-                f.startswith(f"{ETF_CODE}_top10_")
-                and f.endswith(".csv")
+                f.startswith(
+                    f"{ETF_CODE}_top10_"
+                )
+                and
+                f.endswith(".csv")
             )
         ])
 
@@ -214,24 +213,22 @@ for ETF_CODE in ETF_LIST:
         if len(files) >= 2:
 
             yesterday_csv = (
-                f"data/{files[-2]}"
+                f"{SAVE_PATH}/{files[-2]}"
             )
 
-            print("\n比較昨日檔案：")
+            print(f"比較昨日：{yesterday_csv}")
 
-            print(yesterday_csv)
-
-            # ================================
+            # ====================================
             # 讀昨日CSV
-            # ================================
+            # ====================================
 
             yesterday_df = pd.read_csv(
                 yesterday_csv
             )
 
-            # ================================
+            # ====================================
             # 股票代號統一字串
-            # ================================
+            # ====================================
 
             top10_df["股票代號"] = (
                 top10_df["股票代號"]
@@ -243,9 +240,9 @@ for ETF_CODE in ETF_LIST:
                 .astype(str)
             )
 
-            # ================================
-            # merge 比較
-            # ================================
+            # ====================================
+            # merge
+            # ====================================
 
             compare_df = pd.merge(
 
@@ -256,18 +253,21 @@ for ETF_CODE in ETF_LIST:
 
                 how="outer",
 
-                suffixes=("_今日", "_昨日")
+                suffixes=(
+                    "_今日",
+                    "_昨日"
+                )
             )
 
-            # ================================
+            # ====================================
             # 空值補0
-            # ================================
+            # ====================================
 
             compare_df = compare_df.fillna(0)
 
-            # ================================
+            # ====================================
             # 持有股數轉數字
-            # ================================
+            # ====================================
 
             compare_df["持有股數_今日"] = pd.to_numeric(
 
@@ -285,9 +285,9 @@ for ETF_CODE in ETF_LIST:
 
             ).fillna(0)
 
-            # ================================
-            # 計算變化
-            # ================================
+            # ====================================
+            # 股數變化
+            # ====================================
 
             compare_df["股數變化"] = (
 
@@ -296,9 +296,9 @@ for ETF_CODE in ETF_LIST:
                 compare_df["持有股數_昨日"]
             )
 
-            # ================================
+            # ====================================
             # 判斷加減碼
-            # ================================
+            # ====================================
 
             compare_df["變化"] = compare_df[
                 "股數變化"
@@ -310,39 +310,24 @@ for ETF_CODE in ETF_LIST:
                     "不變"
             )
 
-            # ================================
-            # 只保留有變化
-            # ================================
+            # ====================================
+            # 只保留變化
+            # ====================================
 
             change_df = compare_df[
                 compare_df["股數變化"] != 0
             ]
 
-            # ================================
-            # 顯示結果
-            # ================================
-
-            print("\n持股增減：")
+            # ====================================
+            # 有變化才輸出
+            # ====================================
 
             if len(change_df) > 0:
 
-                print(change_df[
-                    [
-                        "股票代號",
-                        "股票名稱_今日",
-                        "持有股數_昨日",
-                        "持有股數_今日",
-                        "股數變化",
-                        "變化"
-                    ]
-                ])
-
-                # ============================
-                # 有變化才輸出CSV
-                # ============================
+                # 今日 compare CSV
 
                 compare_csv = (
-                    f"data/"
+                    f"{SAVE_PATH}/"
                     f"{ETF_CODE}_compare_"
                     f"{today_str}.csv"
                 )
@@ -356,21 +341,37 @@ for ETF_CODE in ETF_LIST:
                     encoding="utf-8-sig"
                 )
 
-                print("\n比較CSV已輸出：")
+                print(f"輸出：{compare_csv}")
 
-                print(compare_csv)
+                # 最新 compare CSV
+
+                latest_csv = (
+                    f"{SAVE_PATH}/"
+                    f"latest_{ETF_CODE}_compare.csv"
+                )
+
+                change_df.to_csv(
+
+                    latest_csv,
+
+                    index=False,
+
+                    encoding="utf-8-sig"
+                )
+
+                print(f"更新：{latest_csv}")
 
             else:
 
-                print("無變化，不輸出 compare CSV")
+                print("無變化")
 
         else:
 
-            print("\n沒有昨日CSV可比較")
+            print("沒有昨日CSV")
 
     except Exception as e:
 
-        print("\n發生錯誤：")
+        print("發生錯誤：")
 
         print(e)
 
