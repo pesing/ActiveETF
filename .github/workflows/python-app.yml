@@ -5,7 +5,9 @@ on:
   schedule:
 
     # 台灣時間 18:00
-    - cron: '0 10 * * *'
+    # 只跑星期一～星期五
+
+    - cron: '0 10 * * 1-5'
 
   workflow_dispatch:
 
@@ -32,7 +34,7 @@ jobs:
           fetch-depth: 0
 
       # ====================================
-      # Python
+      # Setup Python
       # ====================================
 
       - name: Setup Python
@@ -66,7 +68,7 @@ jobs:
           python cketf13ok.py
 
       # ====================================
-      # Git Commit
+      # Commit CSV
       # ====================================
 
       - name: Commit CSV
