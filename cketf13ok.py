@@ -1,6 +1,6 @@
 # ============================================
 # 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# GitHub Actions 專用完整版（台灣時間版）
+# GitHub Actions 專用完整版（自動清舊檔）
 # ============================================
 
 import os
@@ -24,10 +24,12 @@ ETF_LIST = [
 # 台灣時間
 # ============================================
 
-today_str = (
+today_date = (
     datetime.utcnow()
     + timedelta(hours=8)
-).strftime("%Y-%m-%d")
+)
+
+today_str = today_date.strftime("%Y-%m-%d")
 
 print(f"台灣日期：{today_str}")
 
@@ -41,6 +43,29 @@ os.makedirs(
     SAVE_PATH,
     exist_ok=True
 )
+
+# ============================================
+# 刪除4天前CSV
+# ============================================
+
+delete_date = (
+    today_date
+    - timedelta(days=4)
+).strftime("%Y-%m-%d")
+
+print(f"\n刪除日期：{delete_date}")
+
+for file in os.listdir(SAVE_PATH):
+
+    if delete_date in file:
+
+        file_path = (
+            f"{SAVE_PATH}/{file}"
+        )
+
+        os.remove(file_path)
+
+        print(f"已刪除：{file}")
 
 # ============================================
 # 顯示 data 內容
