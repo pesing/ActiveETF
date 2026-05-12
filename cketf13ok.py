@@ -1,6 +1,6 @@
 # ============================================
 # 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# GitHub Actions 專用完整版（自動清理舊CSV）
+# GitHub Actions 專用完整版（交易日版）
 # ============================================
 
 import os
@@ -77,11 +77,14 @@ for file in os.listdir(SAVE_PATH):
             "%Y-%m-%d"
         )
 
-        # 超過4天就刪除
+        # 計算日期差（只比日期）
 
         days_diff = (
-            today_date - file_date
+            today_date.date()
+            - file_date.date()
         ).days
+
+        # 超過4天刪除
 
         if days_diff > 4:
 
@@ -292,13 +295,33 @@ for ETF_CODE in ETF_LIST:
         print(f"檔案數量：{len(files)}")
 
         # ====================================
-        # 至少兩天資料
+        # 至少一筆歷史資料
         # ====================================
 
-        if len(files) >= 2:
+        if len(files) >= 1:
+
+            # ====================================
+            # 找前一交易日CSV
+            # ====================================
+
+            previous_file = None
+
+            for old_file in reversed(files[:-1]):
+
+                if today_str not in old_file:
+
+                    previous_file = old_file
+
+                    break
+
+            if previous_file is None:
+
+                print("沒有前一交易日CSV")
+
+                continue
 
             yesterday_csv = (
-                f"{SAVE_PATH}/{files[-2]}"
+                f"{SAVE_PATH}/{previous_file}"
             )
 
             print(f"\n比較昨日：{yesterday_csv}")
@@ -462,7 +485,7 @@ for ETF_CODE in ETF_LIST:
 
         else:
 
-            print("沒有昨日CSV")
+            print("沒有歷史CSV")
 
     except Exception as e:
 
