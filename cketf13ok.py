@@ -1,496 +1,324 @@
-# ============================================
-# 主動ETF 前10大持股 CSV 產生器 + 昨日比較版
-# GitHub Actions 專用完整版（交易日版）
-# ============================================
-
 import os
+import re
+from datetime import datetime, timedelta, timezone
+
 import pandas as pd
 
-from datetime import datetime
-from datetime import timedelta
-
-# ============================================
-# ETF清單
-# ============================================
 
 ETF_LIST = [
     "00999A",
     "00981A",
     "00992A",
-    "00982A"
+    "00982A",
 ]
 
-# ============================================
-# 台灣時間
-# ============================================
-
-today_date = (
-    datetime.utcnow()
-    + timedelta(hours=8)
-)
-
-today_str = today_date.strftime("%Y-%m-%d")
-
-print(f"台灣日期：{today_str}")
-
-# ============================================
-# GitHub Pages data 資料夾
-# ============================================
-
 SAVE_PATH = "data"
+KEEP_DAYS = 4
+TAIWAN_TZ = timezone(timedelta(hours=8))
 
-os.makedirs(
-    SAVE_PATH,
-    exist_ok=True
-)
 
-# ============================================
-# 刪除超過4天CSV
-# ============================================
+def today_string():
+    return datetime.now(TAIWAN_TZ).strftime("%Y-%m-%d")
 
-print("\n開始清理舊CSV...")
 
-for file in os.listdir(SAVE_PATH):
+def cleanup_old_csv(save_path, today_str):
+    today = datetime.strptime(today_str, "%Y-%m-%d").date()
+    date_pattern = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
-    # 只處理 csv
+    print("\n清理舊 CSV...")
 
-    if not file.endswith(".csv"):
-
-        continue
-
-    # latest 不刪
-
-    if "latest_" in file:
-
-        continue
-
-    try:
-
-        # 取得檔案日期
-
-        file_date_str = (
-            file[-14:-4]
-        )
-
-        file_date = datetime.strptime(
-            file_date_str,
-            "%Y-%m-%d"
-        )
-
-        # 計算日期差（只比日期）
-
-        days_diff = (
-            today_date.date()
-            - file_date.date()
-        ).days
-
-        # 超過4天刪除
-
-        if days_diff > 4:
-
-            file_path = (
-                f"{SAVE_PATH}/{file}"
-            )
-
-            os.remove(file_path)
-
-            print(f"已刪除：{file}")
-
-    except:
-
-        pass
-
-# ============================================
-# 顯示 data 內容
-# ============================================
-
-print("\n目前 data 資料夾：")
-
-print(os.listdir(SAVE_PATH))
-
-# ============================================
-# 開始
-# ============================================
-
-for ETF_CODE in ETF_LIST:
-
-    print("\n======================")
-    print(f"抓取 {ETF_CODE}")
-    print("======================")
-
-    URL = (
-        "https://www.moneydj.com/ETF/X/Basic/"
-        f"Basic0007.xdjhtm?etfid={ETF_CODE.lower()}.tw"
-    )
-
-    print(URL)
-
-    try:
-
-        # ====================================
-        # 抓 tables
-        # ====================================
-
-        tables = pd.read_html(URL)
-
-        print(f"找到 {len(tables)} 個 tables")
-
-        # ====================================
-        # 自動找持股表
-        # ====================================
-
-        holding_df = None
-
-        for i, table in enumerate(tables):
-
-            cols = [str(c) for c in table.columns]
-
-            print(f"TABLE {i} 欄位：")
-
-            print(cols)
-
-            if any(
-                "個股名稱" in c
-                for c in cols
-            ):
-
-                holding_df = table
-
-                print(f"找到持股表 TABLE {i}")
-
-                break
-
-        # ====================================
-        # 找不到持股表
-        # ====================================
-
-        if holding_df is None:
-
-            print("找不到持股表")
-
+    for file_name in os.listdir(save_path):
+        if not file_name.endswith(".csv") or file_name.startswith("latest_"):
             continue
 
-        # ====================================
-        # 第一欄
-        # ====================================
+        match = date_pattern.search(file_name)
+        if not match:
+            continue
 
-        first_col = holding_df.columns[0]
+        file_date = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+        if (today - file_date).days > KEEP_DAYS:
+            file_path = os.path.join(save_path, file_name)
+            os.remove(file_path)
+            print(f"刪除：{file_name}")
 
-        # ====================================
-        # 拆股票名稱與代號
-        # ====================================
 
-        holding_df["股票名稱"] = (
-            holding_df[first_col]
-            .astype(str)
-            .str.extract(r"(.+)\(")
-        )
+def read_all_holdings(etf_code):
+    try:
+        return read_all_holdings_from_zdsetf(etf_code)
+    except Exception as error:
+        print(f"zdsetf 完整持股讀取失敗，改用 IFA：{error}")
+        return read_all_holdings_from_ifa(etf_code)
 
-        holding_df["股票代號"] = (
-            holding_df[first_col]
-            .astype(str)
-            .str.extract(r"\((\d+)")
-        )
 
-        # ====================================
-        # 找投資比例欄位
-        # ====================================
+def read_all_holdings_from_zdsetf(etf_code):
+    url = f"https://zdsetf.com/etf/{etf_code}"
+    tables = pd.read_html(url)
 
-        ratio_col = None
+    for table in tables:
+        columns = [str(column) for column in table.columns]
+        required_columns = ["代號", "名稱", "股數", "權重(%)"]
 
-        for col in holding_df.columns:
+        if set(required_columns).issubset(set(columns)):
+            holding_df = table[required_columns].copy()
+            holding_df = holding_df.rename(
+                columns={
+                    "代號": "股票代號",
+                    "名稱": "股票名稱",
+                    "股數": "持有股數",
+                }
+            )
+            return normalize_holdings(holding_df)
 
-            if "投資比例" in str(col):
+    raise ValueError(f"{etf_code} 找不到 zdsetf 完整持股表")
 
-                ratio_col = col
-                break
 
-        # ====================================
-        # 找持有股數欄位
-        # ====================================
+def read_all_holdings_from_ifa(etf_code):
+    url = f"https://info.ifa.ai/etf/{etf_code}"
+    tables = pd.read_html(url)
 
-        share_col = None
+    for table in tables:
+        columns = [str(column) for column in table.columns]
+        required_columns = ["股票代號", "股票名稱", "持股權重", "股數"]
 
-        for col in holding_df.columns:
+        if set(required_columns).issubset(set(columns)):
+            holding_df = table[required_columns].copy()
+            holding_df = holding_df.rename(
+                columns={
+                    "持股權重": "權重(%)",
+                    "股數": "持有股數",
+                }
+            )
+            return normalize_holdings(holding_df)
 
-            if "持有股數" in str(col):
+    raise ValueError(f"{etf_code} 找不到完整持股表")
 
-                share_col = col
-                break
 
-        # ====================================
-        # 整理欄位
-        # ====================================
+def read_same_day_compare_from_zdsetf(etf_code, today_df):
+    url = f"https://zdsetf.com/etf/{etf_code}"
+    tables = pd.read_html(url)
+    compare_tables = []
 
-        keep_cols = [
+    for table in tables:
+        columns = [str(column) for column in table.columns]
+        required_columns = ["代號", "名稱", "前日股數", "當日股數"]
+
+        if set(required_columns).issubset(set(columns)):
+            compare_tables.append(table[required_columns].copy())
+
+    if not compare_tables:
+        return pd.DataFrame()
+
+    compare_df = pd.concat(compare_tables, ignore_index=True)
+    compare_df = compare_df.rename(
+        columns={
+            "代號": "股票代號",
+            "名稱": "股票名稱",
+            "前日股數": "持有股數_昨日",
+            "當日股數": "持有股數_今日",
+        }
+    )
+
+    compare_df["股票代號"] = (
+        compare_df["股票代號"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
+
+    for column in ["持有股數_昨日", "持有股數_今日"]:
+        compare_df[column] = normalize_number_series(compare_df[column]).astype(int)
+
+    today_weight_df = today_df[["股票代號", "權重(%)"]].rename(columns={"權重(%)": "權重(%)_今日"})
+    compare_df = pd.merge(compare_df, today_weight_df, on="股票代號", how="left")
+    compare_df["權重(%)_昨日"] = 0.0
+    compare_df["權重(%)_今日"] = pd.to_numeric(compare_df["權重(%)_今日"], errors="coerce").fillna(0)
+    compare_df["股數變化"] = compare_df["持有股數_今日"] - compare_df["持有股數_昨日"]
+    compare_df["權重變化(%)"] = compare_df["權重(%)_今日"] - compare_df["權重(%)_昨日"]
+    compare_df["變化"] = compare_df.apply(describe_change, axis=1)
+
+    compare_df = compare_df[
+        [
             "股票代號",
-            "股票名稱"
+            "股票名稱",
+            "持有股數_昨日",
+            "持有股數_今日",
+            "股數變化",
+            "權重(%)_昨日",
+            "權重(%)_今日",
+            "權重變化(%)",
+            "變化",
         ]
+    ]
 
-        if ratio_col:
+    compare_df["權重變化(%)"] = compare_df["權重變化(%)"].round(4)
+    return compare_df.sort_values("股數變化", key=lambda value: value.abs(), ascending=False)
 
-            keep_cols.append(ratio_col)
 
-        if share_col:
+def normalize_holdings(holding_df):
+    holding_df["股票代號"] = (
+        holding_df["股票代號"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.strip()
+    )
 
-            keep_cols.append(share_col)
+    holding_df["股票名稱"] = holding_df["股票名稱"].astype(str).str.strip()
 
-        result_df = holding_df[
-            keep_cols
+    holding_df["權重(%)"] = normalize_number_series(holding_df["權重(%)"])
+
+    holding_df["持有股數"] = normalize_number_series(holding_df["持有股數"]).astype(int)
+
+    holding_df = holding_df[holding_df["股票代號"].ne("")]
+    holding_df = holding_df.sort_values("權重(%)", ascending=False).reset_index(drop=True)
+    return holding_df[["股票代號", "股票名稱", "權重(%)", "持有股數"]]
+
+
+def normalize_number_series(series):
+    return pd.to_numeric(
+        series.astype(str)
+        .str.replace("%", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.replace("—", "0", regex=False)
+        .str.strip(),
+        errors="coerce",
+    ).fillna(0)
+
+
+def find_previous_full_csv(etf_code, today_str):
+    files = sorted(
+        file_name
+        for file_name in os.listdir(SAVE_PATH)
+        if file_name.startswith(f"{etf_code}_full_") and file_name.endswith(".csv")
+    )
+
+    for file_name in reversed(files):
+        if today_str not in file_name:
+            return os.path.join(SAVE_PATH, file_name)
+
+    return None
+
+
+def build_compare(today_df, previous_df):
+    today_df = today_df.copy()
+    previous_df = previous_df.copy()
+
+    today_df["股票代號"] = today_df["股票代號"].astype(str)
+    previous_df["股票代號"] = previous_df["股票代號"].astype(str)
+
+    compare_df = pd.merge(
+        today_df,
+        previous_df,
+        on="股票代號",
+        how="outer",
+        suffixes=("_今日", "_昨日"),
+    )
+
+    compare_df["股票名稱"] = compare_df["股票名稱_今日"].combine_first(compare_df["股票名稱_昨日"])
+
+    for column in ["權重(%)_今日", "權重(%)_昨日", "持有股數_今日", "持有股數_昨日"]:
+        compare_df[column] = pd.to_numeric(compare_df[column], errors="coerce").fillna(0)
+
+    compare_df["股數變化"] = compare_df["持有股數_今日"] - compare_df["持有股數_昨日"]
+    compare_df["權重變化(%)"] = compare_df["權重(%)_今日"] - compare_df["權重(%)_昨日"]
+
+    compare_df["變化"] = compare_df.apply(describe_change, axis=1)
+
+    change_df = compare_df[
+        (compare_df["股數變化"] != 0)
+        | (compare_df["權重變化(%)"].round(6) != 0)
+    ].copy()
+
+    change_df = change_df[
+        [
+            "股票代號",
+            "股票名稱",
+            "持有股數_昨日",
+            "持有股數_今日",
+            "股數變化",
+            "權重(%)_昨日",
+            "權重(%)_今日",
+            "權重變化(%)",
+            "變化",
         ]
-
-        # ====================================
-        # 前10大
-        # ====================================
-
-        top10_df = result_df.head(10)
-
-        print("\n前10大持股：")
-
-        print(top10_df)
-
-        # ====================================
-        # 今日CSV
-        # ====================================
-
-        csv_file = (
-            f"{SAVE_PATH}/"
-            f"{ETF_CODE}_top10_"
-            f"{today_str}.csv"
-        )
-
-        top10_df.to_csv(
-
-            csv_file,
-
-            index=False,
-
-            encoding="utf-8-sig"
-        )
-
-        print(f"\n輸出：{csv_file}")
-
-        # ====================================
-        # 找歷史CSV
-        # ====================================
-
-        files = sorted([
-
-            f for f in os.listdir(SAVE_PATH)
-
-            if (
-                f.startswith(
-                    f"{ETF_CODE}_top10_"
-                )
-                and
-                f.endswith(".csv")
-            )
-
-        ])
-
-        print("\n歷史CSV：")
-
-        print(files)
-
-        print(f"檔案數量：{len(files)}")
-
-        # ====================================
-        # 至少一筆歷史資料
-        # ====================================
-
-        if len(files) >= 1:
-
-            # ====================================
-            # 找前一交易日CSV
-            # ====================================
-
-            previous_file = None
-
-            for old_file in reversed(files[:-1]):
-
-                if today_str not in old_file:
-
-                    previous_file = old_file
-
-                    break
-
-            if previous_file is None:
-
-                print("沒有前一交易日CSV")
-
-                continue
-
-            yesterday_csv = (
-                f"{SAVE_PATH}/{previous_file}"
-            )
-
-            print(f"\n比較昨日：{yesterday_csv}")
-
-            # ====================================
-            # 讀昨日CSV
-            # ====================================
-
-            yesterday_df = pd.read_csv(
-                yesterday_csv
-            )
-
-            # ====================================
-            # 股票代號統一字串
-            # ====================================
-
-            top10_df["股票代號"] = (
-                top10_df["股票代號"]
-                .astype(str)
-            )
-
-            yesterday_df["股票代號"] = (
-                yesterday_df["股票代號"]
-                .astype(str)
-            )
-
-            # ====================================
-            # merge
-            # ====================================
-
-            compare_df = pd.merge(
-
-                top10_df,
-                yesterday_df,
-
-                on="股票代號",
-
-                how="outer",
-
-                suffixes=(
-                    "_今日",
-                    "_昨日"
-                )
-            )
-
-            # ====================================
-            # 空值補0
-            # ====================================
-
-            compare_df = compare_df.fillna(0)
-
-            # ====================================
-            # 持有股數轉數字
-            # ====================================
-
-            compare_df["持有股數_今日"] = pd.to_numeric(
-
-                compare_df["持有股數_今日"],
-
-                errors="coerce"
-
-            ).fillna(0)
-
-            compare_df["持有股數_昨日"] = pd.to_numeric(
-
-                compare_df["持有股數_昨日"],
-
-                errors="coerce"
-
-            ).fillna(0)
-
-            # ====================================
-            # 股數變化
-            # ====================================
-
-            compare_df["股數變化"] = (
-
-                compare_df["持有股數_今日"]
-                -
-                compare_df["持有股數_昨日"]
-            )
-
-            # ====================================
-            # 判斷加減碼
-            # ====================================
-
-            compare_df["變化"] = compare_df[
-                "股數變化"
-            ].apply(
-
-                lambda x:
-                    "加碼" if x > 0 else
-                    "減碼" if x < 0 else
-                    "不變"
-            )
-
-            # ====================================
-            # 只保留變化
-            # ====================================
-
-            change_df = compare_df[
-                compare_df["股數變化"] != 0
-            ]
-
-            print("\n變化資料：")
-
-            print(change_df)
-
-            # ====================================
-            # compare CSV
-            # ====================================
-
-            compare_csv = (
-                f"{SAVE_PATH}/"
-                f"{ETF_CODE}_compare_"
-                f"{today_str}.csv"
-            )
-
-            change_df.to_csv(
-
-                compare_csv,
-
-                index=False,
-
-                encoding="utf-8-sig"
-            )
-
-            print(f"\n輸出：{compare_csv}")
-
-            # ====================================
-            # latest compare CSV
-            # ====================================
-
-            latest_csv = (
-                f"{SAVE_PATH}/"
-                f"latest_{ETF_CODE}_compare.csv"
-            )
-
-            change_df.to_csv(
-
-                latest_csv,
-
-                index=False,
-
-                encoding="utf-8-sig"
-            )
-
-            print(f"更新：{latest_csv}")
-
-            # ====================================
-            # 顯示結果
-            # ====================================
-
-            if len(change_df) == 0:
-
-                print("今日無變化")
-
+    ]
+
+    change_df["持有股數_昨日"] = change_df["持有股數_昨日"].astype(int)
+    change_df["持有股數_今日"] = change_df["持有股數_今日"].astype(int)
+    change_df["股數變化"] = change_df["股數變化"].astype(int)
+    change_df["權重變化(%)"] = change_df["權重變化(%)"].round(4)
+
+    return change_df.sort_values("股數變化", key=lambda value: value.abs(), ascending=False)
+
+
+def describe_change(row):
+    if row["持有股數_昨日"] == 0 and row["持有股數_今日"] > 0:
+        return "新增"
+    if row["持有股數_昨日"] > 0 and row["持有股數_今日"] == 0:
+        return "刪除"
+    if row["股數變化"] > 0:
+        return "增加"
+    if row["股數變化"] < 0:
+        return "減少"
+    if row["權重變化(%)"] > 0:
+        return "權重增加"
+    if row["權重變化(%)"] < 0:
+        return "權重減少"
+    return "無變化"
+
+
+def save_csv(df, path):
+    df.to_csv(path, index=False, encoding="utf-8-sig")
+    print(f"輸出：{path}")
+
+
+def main():
+    today_str = today_string()
+    print(f"今天日期：{today_str}")
+
+    os.makedirs(SAVE_PATH, exist_ok=True)
+    cleanup_old_csv(SAVE_PATH, today_str)
+
+    print("\ndata 目前檔案：")
+    print(os.listdir(SAVE_PATH))
+
+    for etf_code in ETF_LIST:
+        print("\n======================")
+        print(f"處理 {etf_code}")
+        print("======================")
+
+        try:
+            today_df = read_all_holdings(etf_code)
+            print(f"抓到完整持股：{len(today_df)} 筆")
+            print(today_df.head(10))
+
+            full_csv = os.path.join(SAVE_PATH, f"{etf_code}_full_{today_str}.csv")
+            latest_full_csv = os.path.join(SAVE_PATH, f"latest_{etf_code}_full.csv")
+            save_csv(today_df, full_csv)
+            save_csv(today_df, latest_full_csv)
+
+            previous_csv = find_previous_full_csv(etf_code, today_str)
+            if previous_csv is None:
+                print("找不到昨日完整持股 CSV，改用 zdsetf 今日前日差異表。")
+                change_df = read_same_day_compare_from_zdsetf(etf_code, today_df)
             else:
+                print(f"比較基準：{previous_csv}")
+                previous_df = pd.read_csv(previous_csv)
+                change_df = build_compare(today_df, previous_df)
 
-                print("今日有持股變化")
+            print(f"異動筆數：{len(change_df)}")
+            if len(change_df) > 0:
+                print(change_df.head(20))
 
-        else:
+            compare_csv = os.path.join(SAVE_PATH, f"{etf_code}_compare_{today_str}.csv")
+            latest_compare_csv = os.path.join(SAVE_PATH, f"latest_{etf_code}_compare.csv")
+            save_csv(change_df, compare_csv)
+            save_csv(change_df, latest_compare_csv)
 
-            print("沒有歷史CSV")
+        except Exception as error:
+            print(f"{etf_code} 發生錯誤：{error}")
 
-    except Exception as e:
+    print("\n全部完成")
 
-        print("\n發生錯誤：")
 
-        print(e)
-
-print("\n全部完成")
+if __name__ == "__main__":
+    main()
