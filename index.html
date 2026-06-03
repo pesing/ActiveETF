@@ -2,337 +2,191 @@
 <html lang="zh-Hant">
 
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>
-        主動ETF 每日加減碼追蹤
-    </title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主動式 ETF 持股變化比較</title>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
     <style>
-
-        body{
-
-            font-family:Arial;
-
-            margin:20px;
-
-            background:#f5f5f5;
+        body {
+            font-family: Arial, "Noto Sans TC", sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+            color: #333;
         }
 
-        h1{
-
-            color:#333;
+        h1 {
+            margin-bottom: 8px;
         }
 
-        .card{
-
-            background:white;
-
-            padding:20px;
-
-            margin-bottom:20px;
-
-            border-radius:10px;
-
-            box-shadow:0 2px 5px rgba(0,0,0,0.1);
+        .note {
+            margin-bottom: 20px;
+            color: #666;
         }
 
-        .title{
-
-            font-size:24px;
-
-            margin-bottom:10px;
-
-            font-weight:bold;
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
         }
 
-        table{
-
-            width:100%;
-
-            border-collapse:collapse;
+        .title {
+            font-size: 24px;
+            margin-bottom: 10px;
+            font-weight: bold;
         }
 
-        th,td{
-
-            border:1px solid #ccc;
-
-            padding:8px;
-
-            text-align:center;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
         }
 
-        th{
-
-            background:#eee;
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
         }
 
-        .up{
-
-            color:green;
-
-            font-weight:bold;
+        th {
+            background: #eee;
         }
 
-        .down{
-
-            color:red;
-
-            font-weight:bold;
+        .up {
+            color: green;
+            font-weight: bold;
         }
 
+        .down {
+            color: red;
+            font-weight: bold;
+        }
     </style>
-
 </head>
 
 <body>
-
-    <h1>
-        主動ETF 每日加減碼追蹤
-    </h1>
-
+    <h1>主動式 ETF 持股變化比較</h1>
+    <div class="note">顯示各 ETF 今日與昨日持有股數有變化的成分股。</div>
     <div id="container"></div>
 
     <script>
-
-        // ====================================
-        // ETF清單
-        // ====================================
-
         const ETF_LIST = [
-
             "00999A",
             "00981A",
             "00992A",
-            "00982A"
+            "00982A",
         ];
 
-        // ====================================
-        // 載入全部ETF
-        // ====================================
-
-        async function loadAllETF(){
-
-            for(const etf of ETF_LIST){
-
+        async function loadAllETF() {
+            for (const etf of ETF_LIST) {
                 await loadETF(etf);
             }
         }
 
-        // ====================================
-        // 載入ETF compare CSV
-        // ====================================
+        async function loadETF(etfCode) {
+            const url = `data/latest_${etfCode}_compare.csv`;
 
-        async function loadETF(etfCode){
+            try {
+                const response = await fetch(url);
 
-            const url =
-
-                `data/latest_${etfCode}_compare.csv`;
-
-            console.log(url);
-
-            try{
-
-                const response =
-                    await fetch(url);
-
-                // 沒檔案
-                if(!response.ok){
-
-                    console.log(
-                        `${etfCode} 無資料`
-                    );
-
+                if (!response.ok) {
+                    console.log(`${etfCode} 沒有 compare CSV`);
                     return;
                 }
 
-                const csvText =
-                    await response.text();
+                const csvText = await response.text();
 
-                Papa.parse(
-
-                    csvText,
-
-                    {
-
-                        header:true,
-
-                        skipEmptyLines:true,
-
-                        complete:function(results){
-
-                            renderTable(
-
-                                etfCode,
-
-                                results.data
-                            );
-                        }
-                    }
-                );
-
-            }catch(err){
-
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function (results) {
+                        renderTable(etfCode, results.data);
+                    },
+                });
+            } catch (err) {
                 console.log(err);
             }
         }
 
-        // ====================================
-        // 顯示表格
-        // ====================================
-
-        function renderTable(
-
-            etfCode,
-
-            data
-        ){
-
-            if(data.length === 0){
-
+        function renderTable(etfCode, data) {
+            if (data.length === 0) {
                 return;
             }
 
-            const container =
-
-                document.getElementById(
-                    "container"
-                );
-
-            const card =
-
-                document.createElement(
-                    "div"
-                );
-
+            const container = document.getElementById("container");
+            const card = document.createElement("div");
             card.className = "card";
 
             let html = `
-
-                <div class="title">
-
-                    ${etfCode}
-
-                </div>
-
+                <div class="title">${etfCode}</div>
                 <table>
-
                     <thead>
-
                         <tr>
-
                             <th>股票代號</th>
-
                             <th>股票名稱</th>
-
                             <th>昨日股數</th>
-
                             <th>今日股數</th>
-
                             <th>股數變化</th>
-
+                            <th>昨日權重(%)</th>
+                            <th>今日權重(%)</th>
+                            <th>權重變化(%)</th>
                             <th>變化</th>
-
                         </tr>
-
                     </thead>
-
                     <tbody>
             `;
 
-            data.forEach(row => {
-
-                const diff = Number(
-                    row["股數變化"]
-                );
-
+            data.forEach((row) => {
+                const shareDiff = Number(row["股數變化"]);
+                const weightDiff = Number(row["權重變化(%)"]);
                 let cls = "";
 
-                if(diff > 0){
-
+                if (shareDiff > 0 || (shareDiff === 0 && weightDiff > 0)) {
                     cls = "up";
-
-                }else if(diff < 0){
-
+                } else if (shareDiff < 0 || (shareDiff === 0 && weightDiff < 0)) {
                     cls = "down";
                 }
 
                 html += `
-
                     <tr>
-
-                        <td>
-
-                            ${row["股票代號"]}
-
-                        </td>
-
-                        <td>
-
-                            ${row["股票名稱_今日"]}
-
-                        </td>
-
-                        <td>
-
-                            ${Number(
-                                row["持有股數_昨日"]
-                            ).toLocaleString()}
-
-                        </td>
-
-                        <td>
-
-                            ${Number(
-                                row["持有股數_今日"]
-                            ).toLocaleString()}
-
-                        </td>
-
-                        <td class="${cls}">
-
-                            ${diff.toLocaleString()}
-
-                        </td>
-
-                        <td class="${cls}">
-
-                            ${row["變化"]}
-
-                        </td>
-
+                        <td>${row["股票代號"]}</td>
+                        <td>${row["股票名稱"]}</td>
+                        <td>${formatNumber(row["持有股數_昨日"])}</td>
+                        <td>${formatNumber(row["持有股數_今日"])}</td>
+                        <td class="${cls}">${formatNumber(row["股數變化"])}</td>
+                        <td>${formatPercent(row["權重(%)_昨日"])}</td>
+                        <td>${formatPercent(row["權重(%)_今日"])}</td>
+                        <td class="${cls}">${formatPercent(row["權重變化(%)"])}</td>
+                        <td class="${cls}">${row["變化"]}</td>
                     </tr>
                 `;
             });
 
             html += `
-
                     </tbody>
-
                 </table>
             `;
 
             card.innerHTML = html;
-
             container.appendChild(card);
         }
 
-        // ====================================
-        // 啟動
-        // ====================================
+        function formatNumber(value) {
+            return Number(value || 0).toLocaleString();
+        }
+
+        function formatPercent(value) {
+            return Number(value || 0).toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 4,
+            });
+        }
 
         loadAllETF();
-
     </script>
-
 </body>
 
 </html>
