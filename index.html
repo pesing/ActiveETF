@@ -102,6 +102,9 @@
                 Papa.parse(csvText, {
                     header: true,
                     skipEmptyLines: true,
+                    transformHeader: function (header) {
+                        return header.replace(/^\uFEFF/, "").trim();
+                    },
                     complete: function (results) {
                         renderTable(etfCode, results.data);
                     },
@@ -142,6 +145,8 @@
             data.forEach((row) => {
                 const shareDiff = Number(row["股數變化"]);
                 const weightDiff = Number(row["權重變化(%)"]);
+                const stockCode = pickValue(row, ["股票代號", "代號"]);
+                const stockName = pickValue(row, ["股票名稱", "股票名稱_今日", "股票名稱_昨日", "名稱"]);
                 let cls = "";
 
                 if (shareDiff > 0 || (shareDiff === 0 && weightDiff > 0)) {
@@ -152,8 +157,8 @@
 
                 html += `
                     <tr>
-                        <td>${row["股票代號"]}</td>
-                        <td>${row["股票名稱"]}</td>
+                        <td>${stockCode}</td>
+                        <td>${stockName}</td>
                         <td>${formatNumber(row["持有股數_昨日"])}</td>
                         <td>${formatNumber(row["持有股數_今日"])}</td>
                         <td class="${cls}">${formatNumber(row["股數變化"])}</td>
@@ -176,6 +181,16 @@
 
         function formatNumber(value) {
             return Number(value || 0).toLocaleString();
+        }
+
+        function pickValue(row, keys) {
+            for (const key of keys) {
+                if (row[key] !== undefined && row[key] !== null && row[key] !== "") {
+                    return row[key];
+                }
+            }
+
+            return "";
         }
 
         function formatPercent(value) {
